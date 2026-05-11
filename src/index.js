@@ -1,38 +1,18 @@
 import dotenv from "dotenv";
 import http from "http";
-import https from "https";
-import fs from "fs";
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
-
 import connectDB from "./db/index.js";
 import { app } from "./app.js";
 
 dotenv.config({ path: "./.env" });
 
-// ---------------- ENV ----------------
 const PORT = process.env.PORT || 8000;
-const CLIENT_URL =
-  process.env.CLIENT_URL || "http://localhost:5173";
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
-// ---------------- SERVER TYPE DECISION ----------------
-let server;
+// ✅ Render HTTPS khud handle karta hai
+const server = http.createServer(app);
 
-if (process.env.NODE_ENV === "production") {
-  //  PRODUCTION → HTTPS
-  server = https.createServer(
-    {
-      key: fs.readFileSync("./ssl/key.pem"),
-      cert: fs.readFileSync("./ssl/cert.pem"),
-    },
-    app
-  );
-} else {
-  //  DEVELOPMENT → HTTP
-  server = http.createServer(app);
-}
-
-// ---------------- SOCKET ----------------
 const io = new Server(server, {
   cors: {
     origin: CLIENT_URL,
@@ -40,11 +20,9 @@ const io = new Server(server, {
   },
 });
 
-// ---------------- AUTH MIDDLEWARE ----------------
 io.use((socket, next) => {
   try {
     const cookie = socket.handshake.headers.cookie;
-
     if (!cookie) return next(new Error("No cookie found"));
 
     const token = cookie
@@ -54,20 +32,14 @@ io.use((socket, next) => {
 
     if (!token) return next(new Error("No token found"));
 
-    const user = jwt.verify(
-      token,
-      process.env.ACCESS_TOKEN_SECRET
-    );
-
+    const user = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     socket.user = user;
-
     next();
   } catch (err) {
     next(new Error("Auth failed"));
   }
 });
 
-// ---------------- CONNECTION ----------------
 io.on("connection", (socket) => {
   console.log("✅ Connected:", socket.id);
   console.log("👤 User:", socket.user?._id);
@@ -77,13 +49,10 @@ io.on("connection", (socket) => {
   });
 });
 
-// ---------------- START ----------------
 connectDB()
   .then(() => {
     server.listen(PORT, () => {
-      console.log(
-        `🚀 Server running on ${PORT} (${process.env.NODE_ENV})`
-      );
+      console.log(`🚀 Server running on ${PORT} (${process.env.NODE_ENV})`);
     });
   })
   .catch((err) => console.log(err));
