@@ -52,7 +52,7 @@ io.on("connection", (socket) => {
 connectDB()
   .then(() => {
     server.listen(PORT, () => {
-      console.log(`🚀 Server running on ${PORT} (${process.env.NODE_ENV})`);
+      console.log(` Server running on ${PORT} (${process.env.NODE_ENV})`);
     });
   })
   .catch((err) => console.log(err));

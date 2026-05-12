@@ -56,11 +56,11 @@ const registerUser = asyncHandler(async (req, res) => {
 
     const user = await User.create({
         fullName,
-        avatar: avatar.secure_url,
+        avatar:     avatar.secure_url,
         coverImage: coverImage?.secure_url || "",
         password,
         username:   username.toLowerCase(),
-        email,  
+        email,
     })
 
     const createdUser = await User.findById(user._id).select("-password -refreshToken")
@@ -115,7 +115,7 @@ const logOutUser = asyncHandler(async (req, res) => {
             )
         }
     } catch (error) {
-        // ignore error if user not found
+        // ignore
     }
 
     return res
@@ -158,8 +158,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .cookie("accessToken",  accessToken,      cookieOptions)
-        .cookie("refreshToken", newRefreshToken,   cookieOptions)
+        .cookie("accessToken",  accessToken,    cookieOptions)
+        .cookie("refreshToken", newRefreshToken, cookieOptions)
         .json(new ApiResponse(200, {
             accessToken,
             refreshToken: newRefreshToken,
@@ -169,7 +169,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body
 
-    const user             = await User.findById(req.user?._id)
+    const user = await User.findById(req.user?._id)
 
     if (!user) {
         throw new ApiError(401, "User not found")
@@ -232,7 +232,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
     const user = await User.findByIdAndUpdate(
         req.user?._id,
-        { $set: { avatar : avatar.secure_url} },
+        { $set: { avatar: avatar.secure_url } },
         { new: true }
     ).select("-password")
 
@@ -254,7 +254,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
-    if (!coverImage?.secure_url){
+    if (!coverImage?.secure_url) {
         throw new ApiError(400, "Error while uploading cover image")
     }
 
@@ -304,7 +304,8 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
                 channelsSubscribedToCount: { $size: "$subscribedTo" },
                 isSubscribed: {
                     $cond: {
-                        if:   { $in: [req.user?._id, "$subscribers.subscriber"] },
+                       
+                        if:   { $in: [new mongoose.Types.ObjectId(req.user?._id), "$subscribers.subscriber"] },
                         then: true,
                         else: false,
                     },
@@ -334,15 +335,12 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, channel[0], "User channel fetched successfully"))
 })
 
-
 const addToWatchHistory = asyncHandler(async (req, res) => {
     const { videoId } = req.params
 
     await User.findByIdAndUpdate(
         req.user._id,
-        {
-            $addToSet: { watchHistory: videoId } 
-        }
+        { $addToSet: { watchHistory: videoId } }
     )
 
     return res
@@ -384,8 +382,6 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user[0]?.watchHistory || [], "Watch history fetched successfully"))
 })
 
-
-
 export {
     registerUser,
     loginUser,
@@ -398,5 +394,5 @@ export {
     updateUserCoverImage,
     getUserChannelProfile,
     getWatchHistory,
-    addToWatchHistory 
+    addToWatchHistory
 }

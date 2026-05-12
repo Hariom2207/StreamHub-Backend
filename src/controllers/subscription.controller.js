@@ -1,16 +1,15 @@
-import mongoose, {isValidObjectId} from "mongoose"
-import {User} from "../models/user.model.js"
-import { Subscription } from "../models/subscription.model.js"
-import {ApiError} from "../utils/ApiError.js"
-import {ApiResponse} from "../utils/ApiResponse.js"
-import {asyncHandler} from "../utils/asyncHandler.js"
+import mongoose, { isValidObjectId } from "mongoose";
+import { Subscription } from "../models/subscription.model.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
-//  toggle subscription
+
+// ================= TOGGLE SUBSCRIPTION (FIXED) =================
 const toggleSubscription = asyncHandler(async (req, res) => {
     const { channelId } = req.params;
     const userId = req.user?._id;
 
-    // Validation
     if (!isValidObjectId(channelId)) {
         throw new ApiError(400, "Invalid channel ID");
     }
@@ -19,33 +18,44 @@ const toggleSubscription = asyncHandler(async (req, res) => {
         throw new ApiError(400, "You cannot subscribe to yourself");
     }
 
-    // Check if already subscribed
-    const existingSubscription = await Subscription.findOne({
+    // check subscription
+    const existing = await Subscription.findOne({
         subscriber: userId,
-        channel: channelId
+        channel: channelId,
     });
 
-    if (existingSubscription) {
-        // Unsubscribe
-        await Subscription.deleteOne({ _id: existingSubscription._id });
+    let isSubscribed;
 
-        return res.status(200).json(
-            new ApiResponse(200, null, "Unsubscribed successfully")
-        );
+    if (existing) {
+        await Subscription.deleteOne({ _id: existing._id });
+        isSubscribed = false;
+    } else {
+        await Subscription.create({
+            subscriber: userId,
+            channel: channelId,
+        });
+        isSubscribed = true;
     }
 
-    // Subscribe
-    const subscription = await Subscription.create({
-        subscriber: userId,
-        channel: channelId
+    //  always send updated count
+    const subscribersCount = await Subscription.countDocuments({
+        channel: channelId,
     });
 
-    return res.status(201).json(
-        new ApiResponse(201, subscription, "Subscribed successfully")
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                isSubscribed,
+                subscribersCount,
+            },
+            "Subscription updated successfully"
+        )
     );
 });
 
-// controller to return subscriber list of a channel
+
+// ================= GET CHANNEL SUBSCRIBERS =================
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     const { channelId } = req.params;
     const { page = 1, limit = 10 } = req.query;
@@ -56,13 +66,17 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 
     const skip = (page - 1) * limit;
 
-    const subscribers = await Subscription.find({ channel: channelId })
+    const subscribers = await Subscription.find({
+        channel: channelId,
+    })
         .populate("subscriber", "username email avatar")
         .skip(skip)
-        .limit(limit)
+        .limit(Number(limit))
         .lean();
 
-    const total = await Subscription.countDocuments({ channel: channelId });
+    const total = await Subscription.countDocuments({
+        channel: channelId,
+    });
 
     return res.status(200).json(
         new ApiResponse(
@@ -71,7 +85,7 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
                 total,
                 page: Number(page),
                 limit: Number(limit),
-                subscribers
+                subscribers,
             },
             "Subscribers fetched successfully"
         )
@@ -79,40 +93,75 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 });
 
 
-// controller to return channel list to which user has subscribed
+// ================= GET SUBSCRIBED CHANNELS =================
 const getSubscribedChannels = asyncHandler(async (req, res) => {
     const { subscriberId } = req.params;
     const userId = req.user?._id;
 
-    //  Validation
     if (!isValidObjectId(subscriberId)) {
         throw new ApiError(400, "Invalid subscriber ID");
     }
 
-    //  Authorization check 🔐
     if (subscriberId !== userId.toString()) {
         throw new ApiError(403, "Access denied");
     }
 
-    //  Fetch data
-    const channels = await Subscription.find({ subscriber: subscriberId })
-        .populate("channel", "username email avatar")
-        .lean();
+    const channels = await Subscription.aggregate([
+        {
+            $match: {
+                subscriber: new mongoose.Types.ObjectId(subscriberId),
+            },
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "channel",
+                foreignField: "_id",
+                as: "channel",
+            },
+        },
+        { $unwind: "$channel" },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "channel._id",
+                foreignField: "channel",
+                as: "channel.subscribers",
+            },
+        },
+        {
+            $addFields: {
+                "channel.subscribersCount": {
+                    $size: "$channel.subscribers",
+                },
+            },
+        },
+        {
+            $project: {
+                "channel.subscribers": 0,
+                "channel.password": 0,
+                "channel.refreshToken": 0,
+                "channel.watchHistory": 0,
+            },
+        },
+    ]);
 
     return res.status(200).json(
         new ApiResponse(
             200,
             {
                 totalSubscribedChannels: channels.length,
-                channels
+                channels,
             },
             "Subscribed channels fetched successfully"
         )
     );
 });
 
+
+// ================= EXPORTS =================
 export {
     toggleSubscription,
     getUserChannelSubscribers,
-    getSubscribedChannels
-}
+    getSubscribedChannels,
+};
