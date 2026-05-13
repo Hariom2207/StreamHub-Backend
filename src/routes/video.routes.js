@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { varifyJWT } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
+import { optionalVerifyJWT } from "../middlewares/optionalAuth.middleware.js";
 
 import {
     deleteVideo,
@@ -16,7 +17,7 @@ const router = Router();
 
 // ─── PUBLIC ROUTES ─────────────────────────────
 router.get("/", getAllVideos);
-router.get("/:videoId", getVideoById);
+router.get("/:videoId", optionalVerifyJWT, getVideoById);
 
 
 // ─── PROTECTED ROUTES ──────────────────────────

@@ -93,9 +93,10 @@ const getAllVideos = asyncHandler(async (req, res) => {
 });
 
 
-// ================= GET VIDEO BY ID (FIXED FINAL) =================
+// ================= GET VIDEO BY ID =================
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
+
 
   if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "Invalid video ID");
@@ -111,7 +112,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     ? new mongoose.Types.ObjectId(req.user._id)
     : null;
 
-  // OWNER
+  // OWNER with subscribersCount
   const ownerData = await User.aggregate([
     {
       $match: {
@@ -149,12 +150,11 @@ const getVideoById = asyncHandler(async (req, res) => {
     isSubscribed: false,
   };
 
-  // 🔥 FIXED SUBSCRIPTION CHECK
+  // ✅ FIXED — ObjectId properly convert kiya
   let isSubscribed = false;
-
   if (userId) {
     isSubscribed = await Subscription.exists({
-      channel: video.owner,
+      channel: new mongoose.Types.ObjectId(video.owner),  // ← FIX
       subscriber: userId,
     });
   }
@@ -184,8 +184,7 @@ const getVideoById = asyncHandler(async (req, res) => {
 });
 
 
-// ================= OTHER FUNCTIONS (UNCHANGED BUT CLEAN) =================
-
+// ================= INCREMENT VIDEO VIEWS =================
 const incrementVideoViews = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
@@ -202,6 +201,8 @@ const incrementVideoViews = asyncHandler(async (req, res) => {
   );
 });
 
+
+// ================= PUBLISH VIDEO =================
 const publishAVideo = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
 
@@ -234,6 +235,8 @@ const publishAVideo = asyncHandler(async (req, res) => {
   );
 });
 
+
+// ================= UPDATE VIDEO =================
 const updateVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
@@ -273,6 +276,8 @@ const updateVideo = asyncHandler(async (req, res) => {
   );
 });
 
+
+// ================= DELETE VIDEO =================
 const deleteVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
@@ -299,6 +304,8 @@ const deleteVideo = asyncHandler(async (req, res) => {
   );
 });
 
+
+// ================= TOGGLE PUBLISH =================
 const togglePublishStatus = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
